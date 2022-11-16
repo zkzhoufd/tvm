@@ -358,6 +358,7 @@ def quantize_activation(mod, quantizer_node, estimator_node, dataset, min_max):
            quantizer_node[i].set_quant_range(element[0], element[1])
     else:
         for batch in tqdm.tqdm(dataset, desc="Calibrating Activation"):
+            quantization_infos = []
             for samples in collect_stats(qact_runtime, batch, estimator_node, chunk_by):
                 with mp.Pool(num_workers) as pool:
                     quantization_infos += list(pool.map(quantize_activation_intrin, samples))

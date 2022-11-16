@@ -642,7 +642,6 @@ def calibrate_rewrite(ref_call, new_args, ctx):
 
     def visit_arg(arg):
         global layer_count
-        global layer_count
         global have_annotated_node
         global split_op_dict
         global input_dict        
