@@ -927,8 +927,15 @@ class KLDivergence(RangeEstimatorBase):
             raise NotImplementedError(
                 'A Quantizer must be given as an argument to the MSE Range Estimator'
             )
+
+        if self.quantizer.n_bits > 12:
+            self.num_bins = 1300001
+
         self.num_quantized_bins = 2 ** self.quantizer.n_bits - 1
         self.num_candidate_bins = self.num_bins // 2 + 1 - self.num_quantized_bins // 2
+
+        if self.num_candidate_bins <= 0:
+            raise ValueError("num_bins is too small for this {} bits. Please reset num_bins to proper value.".format(self.quantizer.n_bits))
     
     # @property
     # def optimization_method(self):
@@ -1094,7 +1101,7 @@ class KLDivergence(RangeEstimatorBase):
             
             # Define search
             self._define_search_range(data)
-        
+
         self.optimization_method()(data)
 
         return self.current_xmin, self.current_xmax
