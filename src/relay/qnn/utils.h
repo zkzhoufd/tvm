@@ -91,8 +91,10 @@ static inline int32_t GetQmax(const DataType& dtype) {
  *           0.25 = (0.5) * 2^(-1)
  *           0.125 = (0.5) * 2^(-2)
  *
- *       Credit to TFLite reference implementation.
+ *       Credit to TFLite reference implsementation.
  */
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_16(double double_multiplier);
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift_12(double double_multiplier);
 std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplier);
 
 Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
@@ -180,7 +182,10 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
  */
 Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
                                  const Array<IndexExpr>& input_shape);
-
+Expr FixedPointMultiplyToNearest_16bit(Expr tensor, double multiplier,
+                                 const Array<IndexExpr>& input_shape);
+Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
+                                 const Array<IndexExpr>& input_shape);
 /*
  * \brief Fixed point multiplication between integer tensor with floating point
  scalar where the input tensor is per-axis/per-channel quantized..
@@ -206,6 +211,12 @@ Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
  *       3) Right shift the result
  */
 Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multiplier,
+                                  const Array<IndexExpr>& input_shape, int channel_axis,
+                                  const std::string& rounding);
+Expr FixedPointMultiplyPerChannel_16bit(Expr tensor, std::vector<double> multiplier,
+                                  const Array<IndexExpr>& input_shape, int channel_axis,
+                                  const std::string& rounding);
+Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multiplier,
                                   const Array<IndexExpr>& input_shape, int channel_axis,
                                   const std::string& rounding);
 /*
