@@ -49,9 +49,16 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
     return false;
   }
   //printf("%s\n", param->name.c_str());
-  ICHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
+  //ICHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
   if(param->kind == QAnnotateKind::kQWeight && param->per_channel){
+    // if(data->shape.size() == 0){
+    //   reporter->Assign(types[1], TensorType({1}, DataType::Float(32)));  // dom_scale
+    // }
+    // else{
+    //   reporter->Assign(types[1], TensorType({data->shape[0], 1, 1, 1}, DataType::Float(32)));  // dom_scale
+
+    // }
     reporter->Assign(types[1], TensorType({data->shape[0], 1, 1, 1}, DataType::Float(32)));  // dom_scale
     reporter->Assign(types[2], TensorType({}, DataType::Float(32)));  // clip_min
     reporter->Assign(types[3], TensorType({}, DataType::Float(32)));  // clip_max

@@ -102,7 +102,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
   } else {
     if (cfg->rounding == "UPWARD") {
       int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_16(factor);
+      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift_12(factor);
       data = (relay::FixedPointMultiply(data, fixed_point_multiplier, shift));
     } else {
       data = (qnn::FixedPointMultiplyToNearest(data, factor, data_shape));
@@ -120,7 +120,7 @@ inline Expr MulAndDiv_nobias(Expr data, float s1, float s2, DataType dtype,
 
   float factor = s1 / s2;
   float shift_factor = std::log2(factor);
-  ICHECK_GT(shift_factor, 0);
+  //ICHECK_GT(shift_factor, 0);
   if (static_cast<int>(shift_factor) == shift_factor) {
     return LeftShift(data, MakeConstantScalar(dtype, static_cast<int>(shift_factor)));
   } else if (static_cast<int>(factor) == factor) {
@@ -354,7 +354,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         for (size_t i = 0; i < si_s.size(); i++) {
           double si_so = static_cast<double>(si_s[i]) / static_cast<double>(so_s[0]);
           s.push_back(si_so);
-          //printf("si/so = %lf\n",si_so);
+          printf("si/so = %lf\n",si_so);
         }
         
         if(cfg->fixed_point_is16){
@@ -380,6 +380,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         //}
         //Op opp = Downcast<Op>(ref_call->args[1].as<CallNode>()->op);
         //if(opp->name == "relay.op.annotation.simulated_quantize")
+        printf("si/so = %lf\n",idom_scale_imm / odom_scale_imm);
         if(cfg->fixed_point_is16){
           data = CheckPointaddpsumm(qnn::FixedPointMultiplyToNearest_16bit(data, idom_scale_imm / odom_scale_imm, ref_call->type_as<TensorTypeNode>()->shape));
         }
@@ -390,8 +391,8 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
       }   
       data = Add(data, (MakeConstantScalar(cfg->dtype_activation, zero_point_imm)));  //newchange
       //printf("Add done\n");
-      //data = CheckPoint(Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
-      data = (Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
+      data = CheckPoint(Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
+      //data = (Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype));
       //printf("Clip done\n");
       //data = Cast(Clip(data, clip_min_imm, clip_max_imm), n->dtype);
       //printf("int32->int8 done\n");
@@ -415,6 +416,14 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     scaled_data = Divide(data, Cast(dom_scale, DataType::Float(32) ));
     zp_added = Add(scaled_data, (zero_point));
   }
+  // else if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput){
+  //   scaled_data = Multiply(data, MakeConstantScalar(DataType::Float(32), 1 / dom_scale_imm));
+  //   zp_added = Add(scaled_data, MakeConstantScalar(DataType::Float(32), zero_point_imm));
+  // }
+  // else{
+  //   scaled_data = Multiply(data, MakeConstantScalar(DataType::Float(16), 1 / dom_scale_imm));
+  //   zp_added = Add(scaled_data, MakeConstantScalar(DataType::Float(16), zero_point_imm));
+  // }
   else{
     scaled_data = Multiply(data, MakeConstantScalar(DataType::Float(32), 1 / dom_scale_imm));
     zp_added = Add(scaled_data, MakeConstantScalar(DataType::Float(32), zero_point_imm));
@@ -422,8 +431,8 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   
 
   if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput){
-    //round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
-    round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    //round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
 
     //round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);
     }
@@ -434,6 +443,12 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);}
   
   //printf("quantize from real done\n");
+  // if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput || ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQWeight){
+  //   return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(32));
+  // }
+  // else{
+  //   return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(16));
+  // }
   return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(32));
 }
 
@@ -703,6 +718,44 @@ float ChooseDomScale(const Array<Expr>& ref_args, const std::vector<const QReali
     // return scale / std::pow(2.0, cfg->nbit_activation - 1);
   }
 }
+float ChooseMaxDomScale(const Array<Expr>& ref_args, const std::vector<const QRealizeIntExprNode*>& nptrs) {
+  //printf("ChooseDomScale\n");
+  if (nptrs.size() == 2) {
+    // x = a * s1, y = b * s2
+    // x + y = (a * s1 / s2 + b) * s2, if s1 > s2
+    //       = (a + b * s2 / s1) * s1, if s2 > s1
+
+    auto scale1 = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[0]->dom_scale);
+    auto scale2 = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[1]->dom_scale);
+    float s1 = static_cast<float>(scale1[0]);
+    float s2 = static_cast<float>(scale2[0]);
+    float s;
+
+    s = s1 > s2 ? s1 : s2;
+    return s;
+    //float s1 = GetScalarFromConstant<float>(nptrs[0]->dom_scale);
+    //float s2 = GetScalarFromConstant<float>(nptrs[1]->dom_scale);
+    //printf("ChooseDomScale done\n");
+    
+  } else {
+    float s;
+    s = 0;
+    for (size_t i = 0; i < nptrs.size(); ++i) {
+      auto scale_temp = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
+      float s_temp = static_cast<float>(scale_temp[0]);
+      if(s_temp < s){
+        s = s_temp;
+      }
+    }
+    return s;
+    //printf("concate ChooseDomScale done\n");
+    // const QConfig& cfg = QConfig::Current();
+    // float scale = cfg->global_scale;
+    // //printf("ChooseDomScale done\n");
+    // return scale / std::pow(2.0, cfg->nbit_activation - 1);
+  }
+}
+
 template <typename ValueType = int64_t>
 std::vector<ValueType> GetConcrete(const Array<PrimExpr>& vals) {
   std::vector<ValueType> concrete;
@@ -906,8 +959,11 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
         auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
         float cur_s = static_cast<float>(cur_ss[0]);
         //float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
+        printf("*******************\n");
+        printf("s1/s2= %f\n",cur_s/s);
         ret.Set(i,Subtract(ret[i], zp[i]));
-        ret.Set(i, MulAndDiv(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
+        ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
+        ret.Set(i, Cast(Round(ret[i]), dtype));
       }
     }
   }
@@ -929,7 +985,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       for (size_t i = 0; i < ret.size(); ++i) {
         auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
         float cur_s = static_cast<float>(cur_ss[0]);
-        //printf("s1/s2= %f\n",cur_s/s);
+        printf("s1/s2= %f\n",cur_s/s);
         ret.Set(i,Subtract(ret[i], zp[i]));
         ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
         ret.Set(i, Cast(Round(ret[i]), dtype));
@@ -999,7 +1055,7 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
     }
     
     //printf("AddRealize done\n");
-    return QRealizeIntExpr(ret, dom_scale, zero_point, dtype);
+    return QRealizeIntExpr((ret), dom_scale, zero_point, dtype);
   }
 
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>());
@@ -1222,7 +1278,7 @@ Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const
   ldata = Subtract(ldata, MakeConstantScalar(cfg->dtype_input, zps_data_imm));
   rdata = Subtract(rdata, MakeConstantScalar(cfg->dtype_weight, zps_weight_imm));
 
-  Expr ret = CheckPoint(Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args));
+  Expr ret = (Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args));
   Expr mul = Multiply(MakeConstantScalar(DataType::Float(32), lhs_dom_scale_imm), MakeConstantScalar(DataType::Float(32), rhs_dom_scale_imm));
   Expr dom_scale = FoldConstantOpt(mul);
   Expr zero_point = MakeConstantScalar(DataType::Float(32), 0);//其实没必要存在，为了保证输入参数的统一。

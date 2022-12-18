@@ -569,10 +569,10 @@ def prerequisite_optimize(mod, params=None):
             _transform.CanonicalizeOps(),
             _transform.SimplifyInference(),
             _transform.RemoveUnusedFunctions(),
-            _transform.FoldConstant(),
+            #_transform.FoldConstant(),
             _transform.FoldScaleAxis(),
             _transform.FoldSumsPass(), # for batchnorm condition
-            _transform.FoldConstant(),
+            # _transform.FoldConstant(),
             _transform.InferType(),
         ]
     )
@@ -623,8 +623,8 @@ def quantize_calibrate(mod, params=None, dataset=None):
             dbg_mod = quantize_seq(mod)
     
     # dbg_mod does not fold constant for print weight purpose
-    mod = _transform.FoldConstant()(dbg_mod)
-
+    #mod = _transform.FoldConstant()(dbg_mod)
+    mod = dbg_mod
     return mod, dbg_mod
 
 def quantize_inference(mod, params=None):
@@ -668,6 +668,6 @@ def quantize_inference(mod, params=None):
             dbg_mod = quantize_seq(mod)
             
     # dbg_mod does not fold constant for print weight purpose
-    mod = _transform.FoldConstant()(dbg_mod)
-
+    #mod = _transform.FoldConstant()(dbg_mod)
+    mod = dbg_mod
     return mod, dbg_mod

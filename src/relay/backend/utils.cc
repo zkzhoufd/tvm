@@ -256,9 +256,9 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
   pass_seqs.push_back(transform::CombineParallelConv2D(3));
   pass_seqs.push_back(transform::CombineParallelDense(3));
   pass_seqs.push_back(transform::CombineParallelBatchMatmul(3));
-  pass_seqs.push_back(transform::FoldConstant());
-  pass_seqs.push_back(transform::FoldScaleAxis());
-  pass_seqs.push_back(transform::SimplifyExpr());
+  //pass_seqs.push_back(transform::FoldConstant());
+  // pass_seqs.push_back(transform::FoldScaleAxis());
+  // pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CanonicalizeCast());
   pass_seqs.push_back(transform::CanonicalizeOps());
   pass_seqs.push_back(transform::FlattenAtrousConv());
@@ -273,7 +273,7 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
 
   // Fast math optimizations.
   pass_seqs.push_back(transform::FastMath());
-  pass_seqs.push_back(transform::FoldConstant());
+  //pass_seqs.push_back(transform::FoldConstant());
 
   return pass_seqs;
 }

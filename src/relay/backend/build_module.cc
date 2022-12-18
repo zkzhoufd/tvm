@@ -366,7 +366,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         relay_module = major_pass(relay_module);
         // Defuse ops to fold constants, then fuse them again
         relay_module = transform::DefuseOps()(relay_module);
-        relay_module = transform::FoldConstant()(relay_module);
+        //relay_module = transform::FoldConstant()(relay_module);
         relay_module = transform::FuseOps()(relay_module);
       }
     }
@@ -380,7 +380,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         relay_module = major_pass(relay_module);
         // Defuse ops to fold constants, then fuse them again
         relay_module = transform::DefuseOps()(relay_module);
-        relay_module = transform::FoldConstant()(relay_module);
+        //relay_module = transform::FoldConstant()(relay_module);
         relay_module = transform::FuseOps()(relay_module);
       }
     }
