@@ -1039,7 +1039,7 @@ class MeanCollector : private ExprMutator {
 };
 class SoftmaxCollector : private ExprMutator {
  public:
-  SoftmaxCollector() : conv_op_(Op::Get("nn.dense")) {}
+  SoftmaxCollector() : conv_op_(Op::Get("add")) {}
 
   Expr Collect(const Expr& expr) {
     auto new_e = this->Mutate(expr);

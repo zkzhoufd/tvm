@@ -420,12 +420,14 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
   // point sits. As we will be right shifting the multiplied_t, we need to
   // first calculate the total_right_shift.
   int total_right_shift = right_shift + 11 - left_shift;
+  printf("total_right_shift:%d\n",total_right_shift);
   //int total_right_shift = right_shift + real_shift - left_shift;
   //printf("total_right_shift:%d\n",total_right_shift);
   if(total_right_shift<0){
     total_right_shift = 0;
   }
   int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
+  printf("pos_rounding_value:%d\n",pos_rounding_value);
 
   Expr round_scalar;
 
@@ -635,6 +637,128 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
     //ICHECK(lshift==0);
     int rshift = shift > 0 ? 0 : -shift;
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);
+    lshifts.push_back(lshift);
+    rshifts.push_back(rshift);
+    is_lshift_required = is_lshift_required | (lshift != 0);
+    // if(lshift!=0){
+    //   printf("left_shift:%d\n",lshift);
+    //   printf("total_right_shift:%d\n",rshift+11);
+    // }
+
+  }
+
+  // 2) Multiply the integer multiplier. Convert lefts shifts into expr and multiply.
+  // if (is_lshift_required) {
+  //   auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
+  //   auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
+  //   tensor = LeftShift(tensor, exp_lshift_expr);
+  // }
+
+  // 3) Perform the multiplication in higher precision.
+  // The scalar is a fixed point value of int32 where the decimal point is
+  // between bits 31 and 30. After multiplying with input_tensor, the result
+  // is in int64 where the decimal point is sitting between bits 31 and 30
+  // (from the right, rightmost bit is bit 0). The computation is performed in
+  // higher precision to avoid overflow in multiplying two int32 values.
+  auto fixed_pt_multiplier_expr = MakeConstantTensor(hp_dtype, {n_channels}, fixed_pt_multipliers);
+  auto exp_fixed_pt_multiplier_expr =
+      ExpandBiasToMatchAxis(fixed_pt_multiplier_expr, n_dim, {channel_axis});
+  tensor = Multiply(tensor, exp_fixed_pt_multiplier_expr);
+
+  // 4) Find the rounding scalar. This depends on where the final decimal point sits. As we will be
+  // right shifting the multiplied_t, we need to first calculate the total_rshift. Further, we can
+  // calculate the pos and neg rounding offset.
+  std::vector<int64_t> pos_rounding_values, neg_rounding_values, total_rshifts;
+  //for (auto rshift : rshifts) {
+  for (size_t i = 0; i < rshifts.size(); i++){
+    int total_rshift = rshifts[i] + 11 - lshifts[i];
+    //int total_rshift = rshifts[i] + real_shift - lshifts[i];
+    if(total_rshift < 0){
+      total_rshift = 0;
+    }
+    total_rshifts.push_back(total_rshift);
+    pos_rounding_values.push_back((1ll << (total_rshift - 1)));
+    neg_rounding_values.push_back((1ll << (total_rshift - 1)) - 1);
+  }
+  // Make a Relay expr from positive and negative rounding offset values.
+  auto pos_rounding_value_expr = MakeConstantTensor(hp_dtype, {n_channels}, pos_rounding_values);
+  auto exp_pos_rounding_value_expr =
+      ExpandBiasToMatchAxis(pos_rounding_value_expr, n_dim, {channel_axis});
+  auto neg_rounding_value_expr = MakeConstantTensor(hp_dtype, {n_channels}, neg_rounding_values);
+  auto exp_neg_rounding_value_expr =
+      ExpandBiasToMatchAxis(neg_rounding_value_expr, n_dim, {channel_axis});
+
+  Expr round_scalar;
+  if (rounding == "UPWARD") {
+    round_scalar = exp_pos_rounding_value_expr;
+  } else if (rounding == "TONEAREST") {
+    // To satisfy where op shape requirements, the rounding values are broadcasted.
+    auto pos_rounder = BroadCastTo(exp_pos_rounding_value_expr, input_shape);
+    auto neg_rounder = BroadCastTo(exp_neg_rounding_value_expr, input_shape);
+
+    auto zero_t = Zeros(input_shape, hp_dtype);
+    round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder, neg_rounder);
+  } else {
+    LOG(FATAL) << "Rounding mode " << rounding << " not supported.";
+  }
+  // Add the rounding scalar.
+  tensor = Add(tensor, round_scalar);
+
+  // 5) Simply right shift the result to get the final output.
+  auto total_rshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, total_rshifts);
+  auto exp_total_rshift_expr = ExpandBiasToMatchAxis(total_rshift_expr, n_dim, {channel_axis});
+  tensor = RightShift(tensor, exp_total_rshift_expr);
+
+  // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
+  return tensor;
+}
+
+Expr FixedPointMultiplyPerChannel_sameshift_12bit(Expr tensor, std::vector<double> multipliers,
+                                  const Array<IndexExpr>& input_shape, int channel_axis,
+                                  const std::string& rounding) {
+  // Get the n dim. This will be used to expand the multiplier to match the axis.
+  size_t n_dim = input_shape.size();
+
+  // Get the num of channels/axis along which the tensor was quantized.
+  int64_t n_channels = (int64_t)multipliers.size();
+
+  // Choose high precision datatype to be int64. This is for avoiding overflow
+  // in multiplication of two int32 values.
+  DataType hp_dtype = DataType::Int(64);
+  tensor = Cast(tensor, hp_dtype);
+
+  // 1) Calculating the integer multiplier and integer shift. These are calculated per axis/per
+  // channel.
+  std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
+  int32_t real_shift;
+  bool is_lshift_required = false;
+  double max_multipiler;
+  int32_t significand, exponent;
+  //printf("one point perchannel:\n");
+  for (auto multiplier : multipliers) {
+    max_multipiler = 0;
+    if(multiplier > max_multipiler){
+      max_multipiler = multiplier;
+    }
+  }
+  double significand_d = std::frexp(max_multipiler, &exponent);
+
+  for (auto multiplier : multipliers) {
+    int32_t fixed_pt_multiplier, shift;
+    //printf("multiplier = %lf\n",multiplier);
+    //std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift_12(multiplier);
+    double significand_d = std::frexp(multiplier, &shift);
+    significand_d = std::round(significand_d * (1ll << 11-(exponent-shift)));
+    auto significand_int64 = static_cast<int64_t>(significand_d);
+    significand = static_cast<int32_t>(significand_int64);
+    // printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-real_shift);
+    //printf("%d\n",-shift+11);
+    //printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-11);
+    printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, significand, exponent-11);
+    int lshift = exponent > 0 ? exponent : 0;
+    //ICHECK(lshift==0);
+    int rshift = exponent > 0 ? 0 : -exponent;
+    fixed_pt_multipliers.push_back(significand);
     lshifts.push_back(lshift);
     rshifts.push_back(rshift);
     is_lshift_required = is_lshift_required | (lshift != 0);

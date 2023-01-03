@@ -362,7 +362,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
           //data = MulAndDiv_perchannel_upward_16(data, s, cfg->dtype_activation); //newchange
         }
         else{
-          data = CheckPointconvpsum(qnn::FixedPointMultiplyPerChannel_12bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST"));
+          data = CheckPointconvpsum(qnn::FixedPointMultiplyPerChannel_sameshift_12bit(data, s, ref_call->type_as<TensorTypeNode>()->shape, 1, "TONEAREST"));
           //data = MulAndDiv_perchannel_upward_12(data, s, cfg->dtype_activation); //newchange
         }
         //printf("MulAndDiv_perchannel_upward done\n");
@@ -431,8 +431,8 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   
 
   if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput){
-    round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
-    //round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    //round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
 
     //round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);
     }
@@ -449,7 +449,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   // else{
   //   return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(16));
   // }
-  return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(32));
+  return QRealizeIntExpr(CheckPoint(round_data), dom_scale, zero_point, DataType::Float(32));
 }
 
 Expr FoldConstantOpt(const Expr& expr) {
@@ -693,8 +693,24 @@ float ChooseDomScale(const Array<Expr>& ref_args, const std::vector<const QReali
     float s1 = static_cast<float>(scale1[0]);
     float s2 = static_cast<float>(scale2[0]);
     float s;
-
+    
     s = s1 > s2 ? s2 : s1;
+    if(s1 > s2){
+      if(s1/s2 >= 1024){
+        s = s1;
+      }
+      else{
+        s = s2;
+      }
+    }
+    else{
+      if(s2/s1 >= 1024){
+        s = s2;
+      }
+      else{
+        s = s1;
+      }
+    }
     return s;
     //float s1 = GetScalarFromConstant<float>(nptrs[0]->dom_scale);
     //float s2 = GetScalarFromConstant<float>(nptrs[1]->dom_scale);

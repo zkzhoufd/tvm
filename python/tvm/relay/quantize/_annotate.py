@@ -671,9 +671,9 @@ def calibrate_rewrite(ref_call, new_args, ctx):
         elif(isinstance(arg, _expr.Constant)):
             if(ref_call.op == add_op):
                 if( len(arg.data.shape) == 0):
-                    new_arg = arg
-                    # qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
-                    # new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
+                    # new_arg = arg
+                    qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
+                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
                 else:
                     qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
                     new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
@@ -681,9 +681,9 @@ def calibrate_rewrite(ref_call, new_args, ctx):
                 new_arg = arg
             else:
                 if(len(arg.data.shape) == 0): # It's a scalar, not need to quantize
-                    new_arg = arg
-                    # qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
-                    # new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name)
+                    # new_arg = arg
+                    qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
+                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name)
                 else:
                     qnode_name = ref_call.op.name + "_" + "weight" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
                     if(ref_call.op == conv1d_op or ref_call.op == conv2d_op):

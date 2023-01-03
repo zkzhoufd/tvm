@@ -219,6 +219,9 @@ Expr FixedPointMultiplyPerChannel_16bit(Expr tensor, std::vector<double> multipl
 Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multiplier,
                                   const Array<IndexExpr>& input_shape, int channel_axis,
                                   const std::string& rounding);
+Expr FixedPointMultiplyPerChannel_sameshift_12bit(Expr tensor, std::vector<double> multiplier,
+                                  const Array<IndexExpr>& input_shape, int channel_axis,
+                                  const std::string& rounding);
 /*
  * \brief Checks whether an expr type is scalar of a given data type.
  * \param expr_type The type of expr to be checked.
