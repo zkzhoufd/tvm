@@ -17,6 +17,22 @@ from .. import transform as _transform
 from . import _quantize
 from tvm import relay
 
+def _get_softmax_runtime(mod):
+    func = mod["main"]
+    func = _quantize.CreateSoftmaxCollector(func)
+
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
+        dev = tvm.device(target.kind.name)
+    else:
+        target = "llvm"
+        dev = tvm.device(target)
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = _build_module.build(func, target=target)
+    runtime = graph_executor.GraphModule(lib["default"](dev))
+
+    return runtime
 
 def _get_mean_runtime(mod):
     func = mod["main"]
@@ -313,7 +329,7 @@ def collect(mod,mod_quantize, dataset=None):
         np.save(QCheckpoint_dir + "/" + "QCheckpoint_{}".format(j), checkpoint_tmp)
     
     #Step 6.
-    simulatedquantize_runtime = _get_qactivation_runtime(mod)
+    simulatedquantize_runtime = _get_softmax_runtime(mod)
     num_simualtedquantize_outputs = simulatedquantize_runtime.get_num_outputs()
     #assert(num_checkpoint_outputs == len(qact_all_list)+len(qweight_qparam_list))    
     batch = dataset[7]
@@ -321,8 +337,8 @@ def collect(mod,mod_quantize, dataset=None):
     simulatedquantize_runtime.run()
     for j in range(num_simualtedquantize_outputs):
         simulatedquantize_tmp = simulatedquantize_runtime.get_output(j).numpy()
-        simulatedquantize_int_tmp = np.round(np.add(np.divide(simulatedquantize_tmp, qact_qparam_list[j][0]), qact_qparam_list[j][1]))
-        np.save(QSimualtedquantize_dir + "/" + "QSimulateQuantize_{}".format(j), simulatedquantize_int_tmp)
+        #simulatedquantize_int_tmp = np.round(np.add(np.divide(simulatedquantize_tmp, qact_qparam_list[j][0]), qact_qparam_list[j][1]))
+        np.save(QSimualtedquantize_dir + "/" + "QSimulateQuantize_{}".format(j), simulatedquantize_tmp)
     """
     print("starting conv ")
     conv_runtime = _get_qconv_runtime(mod)
@@ -346,14 +362,15 @@ def collect(mod,mod_quantize, dataset=None):
 
     
     cosine_result_list = []
-
     dir = cfg.get_rootdir_name() + '/dbug_qfm/'
     for i in range(num_checkpoint_outputs):
+        
         m1 = np.load(dir+'QCheckpoint/'+'QCheckpoint_'+str(i)+'.npy')
         m2 = np.load(dir+'QSimualtedquantize/'+'QSimulateQuantize_'+str(i)+'.npy')
         a= relay.quantize.get_consine_similar(m1,m2)
         cosine_result_list.append(a)
-
+    print(num_simualtedquantize_outputs)
+    print(num_checkpoint_outputs)
     print(cosine_result_list)
     f = open(root_dir_name+'cosine_result_list.txt','w')
     f.write(str(cosine_result_list))

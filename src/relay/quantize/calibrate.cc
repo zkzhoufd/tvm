@@ -1037,6 +1037,41 @@ class MeanCollector : private ExprMutator {
     }
   }
 };
+class SoftmaxCollector : private ExprMutator {
+ public:
+  SoftmaxCollector() : conv_op_(Op::Get("add")) {}
+
+  Expr Collect(const Expr& expr) {
+    auto new_e = this->Mutate(expr);
+    const FunctionNode* func = new_e.as<FunctionNode>();
+    ICHECK(func) << "Input shoule be Function";
+    Expr new_body = Tuple(std::move(profile_data_));
+    Function ret_func = WithFields(GetRef<Function>(func), FreeVars(new_body), new_body);
+
+    // We are changing the function's ret_type to an empty type. Unfortunately, Optional<Type>() is
+    // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
+    // WithFields.
+    ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
+    return ret_func;
+  }
+
+ private:
+  Array<Expr> profile_data_;
+  const Op& conv_op_;
+
+
+  Expr VisitExpr_(const CallNode* call) {
+    Expr new_e = ExprMutator::VisitExpr_(call);
+    const CallNode* new_call = new_e.as<CallNode>();
+    ICHECK(new_call);
+    if (new_call->op == conv_op_ ) {       
+      profile_data_.push_back(new_e);
+      return new_e;
+    } else {
+      return new_e;
+    }
+  }
+};
 /*
  * \brief Given an annotated graph, create a profile graph to collect profile data from the
  * calibration dataset.
@@ -1057,6 +1092,7 @@ Expr CreateQAddCollector(const Expr& expr) { return QAddCollector().Collect(expr
 Expr CreateQConvCollector(const Expr& expr) { return QConvCollector().Collect(expr); }
 Expr CreateReluCollector(const Expr& expr) { return ReluCollector().Collect(expr); }
 Expr CreateMeanCollector(const Expr& expr) { return MeanCollector().Collect(expr); }
+Expr CreateSoftmaxCollector(const Expr& expr) { return SoftmaxCollector().Collect(expr); }
 
 Expr CreateQCheckPointSiSoCollector(const Expr& expr) { return QCheckPointSiSoCollector().Collect(expr);}
 Expr CreateQCheckPointBiasSCollector(const Expr& expr) { return QCheckPointBiasSCollector().Collect(expr);}
@@ -1086,6 +1122,7 @@ TVM_REGISTER_GLOBAL("relay._quantize.CreateAddPsummCollector").set_body_typed(Cr
 TVM_REGISTER_GLOBAL("relay._quantize.CreateConvPsumCollector").set_body_typed(CreateConvPsumCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateConvAddCollector").set_body_typed(CreateConvAddCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateMeanCollector").set_body_typed(CreateMeanCollector);
+TVM_REGISTER_GLOBAL("relay._quantize.CreateSoftmaxCollector").set_body_typed(CreateSoftmaxCollector);
 
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointSiSoCollector").set_body_typed(CreateQCheckPointSiSoCollector);
 TVM_REGISTER_GLOBAL("relay._quantize.CreateQCheckPointBiasSCollector").set_body_typed(CreateQCheckPointBiasSCollector);
