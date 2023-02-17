@@ -329,7 +329,7 @@ def collect(mod,mod_quantize, dataset=None):
         np.save(QCheckpoint_dir + "/" + "QCheckpoint_{}".format(j), checkpoint_tmp)
     
     #Step 6.
-    simulatedquantize_runtime = _get_softmax_runtime(mod)
+    simulatedquantize_runtime = _get_qactivation_runtime(mod)
     num_simualtedquantize_outputs = simulatedquantize_runtime.get_num_outputs()
     #assert(num_checkpoint_outputs == len(qact_all_list)+len(qweight_qparam_list))    
     batch = dataset[7]
