@@ -288,7 +288,7 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
   int32_t fixed_point_multiplier, shift;
   std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift_12(multiplier);
   //printf("multiplier:%lf\n",multiplier);
-  printf("12bit_fixed_pertensor:%.10f = %d * 2^%d\n",multiplier, fixed_point_multiplier, shift-11);
+  ////printf("12bit_fixed_pertensor:%.10f = %d * 2^%d\n",multiplier, fixed_point_multiplier, shift-11);
   int32_t real_shift;
   // if (-shift + 11 >=8 && -shift + 11 < 15){
   //   real_shift = 8 + shift;
@@ -420,14 +420,14 @@ Expr FixedPointMultiplyToNearest_12bit(Expr tensor, double multiplier,
   // point sits. As we will be right shifting the multiplied_t, we need to
   // first calculate the total_right_shift.
   int total_right_shift = right_shift + 11 - left_shift;
-  printf("total_right_shift:%d\n",total_right_shift);
+  ////printf("total_right_shift:%d\n",total_right_shift);
   //int total_right_shift = right_shift + real_shift - left_shift;
   //printf("total_right_shift:%d\n",total_right_shift);
   if(total_right_shift<0){
     total_right_shift = 0;
   }
   int64_t pos_rounding_value = (1ll << (total_right_shift - 1));
-  printf("pos_rounding_value:%d\n",pos_rounding_value);
+  ////printf("pos_rounding_value:%d\n",pos_rounding_value);
 
   Expr round_scalar;
 
@@ -632,7 +632,7 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
     // }
     // printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-real_shift);
     //printf("%d\n",-shift+11);
-    //printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-11);
+    ////printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-11);
     int lshift = shift > 0 ? shift : 0;
     //ICHECK(lshift==0);
     int rshift = shift > 0 ? 0 : -shift;
@@ -753,8 +753,8 @@ Expr FixedPointMultiplyPerChannel_sameshift_12bit(Expr tensor, std::vector<doubl
     significand = static_cast<int32_t>(significand_int64);
     // printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-real_shift);
     //printf("%d\n",-shift+11);
-    //printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-11);
-    printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, significand, exponent-11);
+    ////printf("12bit_same_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, significand, exponent-11);
+    //printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, significand, exponent-11);
     int lshift = exponent > 0 ? exponent : 0;
     //ICHECK(lshift==0);
     int rshift = exponent > 0 ? 0 : -exponent;

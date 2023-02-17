@@ -354,7 +354,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         for (size_t i = 0; i < si_s.size(); i++) {
           double si_so = static_cast<double>(si_s[i]) / static_cast<double>(so_s[0]);
           s.push_back(si_so);
-          printf("si/so = %lf\n",si_so);
+          //printf("si/so = %lf\n",si_so);
         }
         
         if(cfg->fixed_point_is16){
@@ -380,7 +380,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         //}
         //Op opp = Downcast<Op>(ref_call->args[1].as<CallNode>()->op);
         //if(opp->name == "relay.op.annotation.simulated_quantize")
-        printf("si/so = %lf\n",idom_scale_imm / odom_scale_imm);
+        //printf("si/so = %lf\n",idom_scale_imm / odom_scale_imm);
         if(cfg->fixed_point_is16){
           data = CheckPointaddpsumm(qnn::FixedPointMultiplyToNearest_16bit(data, idom_scale_imm / odom_scale_imm, ref_call->type_as<TensorTypeNode>()->shape));
         }
@@ -431,8 +431,8 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   
 
   if(ref_call->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput){
-    //round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
-    round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    round_data = CheckPoint(Clip(Round(zp_added), clip_min_imm, clip_max_imm));
+    //round_data = (Clip(Round(zp_added), clip_min_imm, clip_max_imm));
 
     //round_data = Clip(Round(zp_added), clip_min_imm, clip_max_imm);
     }
@@ -449,7 +449,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   // else{
   //   return QRealizeIntExpr(round_data, dom_scale, zero_point, DataType::Float(16));
   // }
-  return QRealizeIntExpr(CheckPoint(round_data), dom_scale, zero_point, DataType::Float(32));
+  return QRealizeIntExpr((round_data), dom_scale, zero_point, DataType::Float(32));
 }
 
 Expr FoldConstantOpt(const Expr& expr) {
@@ -975,8 +975,8 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
         auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
         float cur_s = static_cast<float>(cur_ss[0]);
         //float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
-        printf("*******************\n");
-        printf("s1/s2= %f\n",cur_s/s);
+        //printf("*******************\n");
+        //printf("s1/s2= %f\n",cur_s/s);
         ret.Set(i,Subtract(ret[i], zp[i]));
         ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
         ret.Set(i, Cast(Round(ret[i]), dtype));
@@ -1001,7 +1001,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
       for (size_t i = 0; i < ret.size(); ++i) {
         auto cur_ss = tvm::relay::qnn::GetFloatVectorFromConstant(nptrs[i]->dom_scale);
         float cur_s = static_cast<float>(cur_ss[0]);
-        printf("s1/s2= %f\n",cur_s/s);
+        //printf("s1/s2= %f\n",cur_s/s);
         ret.Set(i,Subtract(ret[i], zp[i]));
         ret.Set(i, MulAndDiv_nobias(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));
         ret.Set(i, Cast(Round(ret[i]), dtype));
