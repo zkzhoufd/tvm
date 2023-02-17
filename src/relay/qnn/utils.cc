@@ -636,6 +636,7 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
     int lshift = shift > 0 ? shift : 0;
     //ICHECK(lshift==0);
     int rshift = shift > 0 ? 0 : -shift;
+    ////printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, -rshift-11+lshift);
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);
     lshifts.push_back(lshift);
     rshifts.push_back(rshift);
@@ -671,7 +672,8 @@ Expr FixedPointMultiplyPerChannel_12bit(Expr tensor, std::vector<double> multipl
   std::vector<int64_t> pos_rounding_values, neg_rounding_values, total_rshifts;
   //for (auto rshift : rshifts) {
   for (size_t i = 0; i < rshifts.size(); i++){
-    int total_rshift = rshifts[i] + 11 - lshifts[i];
+    int total_rshift = rshifts[i] + 11 ;
+    //int total_rshift = rshifts[i] + 11 - lshifts[i];
     //int total_rshift = rshifts[i] + real_shift - lshifts[i];
     if(total_rshift < 0){
       total_rshift = 0;
@@ -748,11 +750,13 @@ Expr FixedPointMultiplyPerChannel_sameshift_12bit(Expr tensor, std::vector<doubl
     //printf("multiplier = %lf\n",multiplier);
     //std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift_12(multiplier);
     double significand_d = std::frexp(multiplier, &shift);
+    //printf("significand_d%.10f = %d * 2^%d\n", significand_d, multiplier, shift);
     significand_d = std::round(significand_d * (1ll << 11-(exponent-shift)));
     auto significand_int64 = static_cast<int64_t>(significand_d);
     significand = static_cast<int32_t>(significand_int64);
     // printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, fixed_pt_multiplier, shift-real_shift);
     //printf("%d\n",-shift+11);
+    significand = multiplier < std::pow(2.0, exponent- 11) ? 0 : significand ;
     ////printf("12bit_same_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, significand, exponent-11);
     //printf("12bit_fixed_perchannel:%.10f = %d * 2^%d\n",multiplier, significand, exponent-11);
     int lshift = exponent > 0 ? exponent : 0;
@@ -793,7 +797,7 @@ Expr FixedPointMultiplyPerChannel_sameshift_12bit(Expr tensor, std::vector<doubl
   std::vector<int64_t> pos_rounding_values, neg_rounding_values, total_rshifts;
   //for (auto rshift : rshifts) {
   for (size_t i = 0; i < rshifts.size(); i++){
-    int total_rshift = rshifts[i] + 11 - lshifts[i];
+    int total_rshift = rshifts[i] + 11;
     //int total_rshift = rshifts[i] + real_shift - lshifts[i];
     if(total_rshift < 0){
       total_rshift = 0;

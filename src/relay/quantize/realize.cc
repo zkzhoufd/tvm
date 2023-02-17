@@ -346,7 +346,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
         data = Cast(Round(data), cfg->dtype_activation); //newchange
           */
       
-      
+
         auto si_s = tvm::relay::qnn::GetFloatVectorFromConstant(n->dom_scale);
         //printf("si.size = %ld\n",si_s.size());
         auto so_s = tvm::relay::qnn::GetFloatVectorFromConstant(dom_scale);
