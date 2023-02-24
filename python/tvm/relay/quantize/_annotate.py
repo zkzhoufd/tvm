@@ -672,10 +672,12 @@ def calibrate_rewrite(ref_call, new_args, ctx):
                 if( len(arg.data.shape) == 0):
                     # new_arg = arg
                     qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
-                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
+                    #new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
+                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name)
                 else:
                     qnode_name = ref_call.op.name + "_" + "bias" + "_" + str(layer_count) + "_" + str(weight_count) + ":in"
-                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
+                    #new_arg = attach_simulated_quantize(arg, QAnnotateKind.BIAS, qnode_name)
+                    new_arg = attach_simulated_quantize(arg, QAnnotateKind.WEIGHT, qnode_name)
             elif(ref_call.op == pad_op): #pad
                 new_arg = arg
             else:
